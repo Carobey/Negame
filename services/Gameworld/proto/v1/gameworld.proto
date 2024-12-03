@@ -1,0 +1,207 @@
+syntax = "proto3";
+
+package gameworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// CelestialObjectType определяет типы небесных объектов.
+// Типы организованы иерархически от крупномасштабных структур до малых тел.
+enum CelestialObjectType {
+    // Неопределенный тип
+    CELESTIAL_OBJECT_TYPE_UNSPECIFIED = 0;
+
+    // Крупномасштабные структуры
+    GALAXY_CLUSTER = 1;    // Гигантское скопление галактик, связанных гравитацией
+    GALAXY = 2;            // Отдельная галактика
+
+    // Компоненты внутри галактик
+    GALAXY_ARM = 3;             // Спиральный рукав галактики
+    MOLECULAR_CLOUD = 4;       // Область формирования звёзд
+
+    // Звёздные системы
+    STAR_SYSTEM_MULTIPLE = 5;  // Система с тремя и более звёздами
+    STAR_SYSTEM_BINARY = 6;    // Двойная звёздная система
+    STAR_SYSTEM_SINGLE = 7;    // Одиночная звёздная система
+
+    // Звёзды и sub star объекты 
+    STAR = 8;                  // Звезда
+    BLACK_HOLE_STELLAR = 9;    // Чёрная дыра
+    BROWN_DWARF = 10;          // Неудавшаяся звезда
+
+    // Различные типы планет и планетоподобных тел
+    PLANET = 11;                // Каменистая планета земного типа
+    DWARF_PLANET = 12;          // Карликовая планета
+    PLANETOID = 13;             // Малая планета
+
+    // Малые тела
+    ASTEROID = 14;              // Астероид
+    ASTEROID_BELT = 15;         // Пояс астероидов
+    COMET = 16;                 // Комета
+    KUIPER_BELT_OBJECT = 17;    // Объект пояса Койпера
+    OORT_CLOUD_OBJECT = 18;     // Объект облака Оорта
+
+    // Искусственные и фантастические объекты
+    DYSON_SPHERE = 19;          // Cфера Дайсона
+    DYSON_SWARM = 20;           // Рой спутников вокруг звезды
+    ARTIFICIAL_HABITAT = 21;    // Искусственная среда обитания
+    SPACE_STATION = 22;         // Космическая станция
+    STELLAR_ENGINE = 23;        // Устройство для управления звездой
+    WORMHOLE = 24;              // Пространственно-временной тоннель
+    QUANTUM_VACUUM_MINE = 25;   // Устройство для добычи энергии вакуума
+}
+
+// Глобальные координаты объекта в пространстве.
+// Используется для определения положения объекта в галактике.
+message GlobalCoordinates {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+}
+
+// Локальные координаты объекта в пространстве.
+// Используется для определения положения объекта в локальном секторе.
+message LocalCoordinates {
+    double x = 1;
+    double y = 2;
+    double z = 3;
+}
+
+// CelestialObject представляет собой базовый небесный объект.
+message CelestialObject {
+    // Уникальный идентификатор объекта
+    string id = 1;
+    
+    // ID родительского объекта 
+    optional string parent_id = 2;
+    
+    // Тип небесного объекта
+    CelestialObjectType type = 3;
+    string subType = 4;
+    
+    // Название объекта
+    string name = 5;
+    
+    // Научное обозначение объекта (например, HD 40307)
+    optional string designation = 6;
+    
+    // Позиция объекта
+    GlobalCoordinates globCoordinates = 7;                    
+    LocalCoordinates locCoordinates = 8;
+
+    // Дополнительные данные
+    map<string, string> properties = 9;           // Общие свойства
+
+    optional google.protobuf.Timestamp discovery_date = 10;    // Дата открытия
+
+    optional bool discovered = 11; // flag то что система посещалась
+}
+
+// CelestialObject дополнительные параметры базового небесного объекта.
+// Содержит дополнительные характеристики, которые могут быть у космического объекта.
+message CelestialObjectProperty {
+
+    optional double proper_motion_ra = 1;         // Собственное движение по прямому восхождению (mas/год)
+    optional double proper_motion_dec = 2;        // Собственное движение по склонению (mas/год)
+    optional double radial_velocity = 3;          // Лучевая скорость (км/с)
+    optional double parallax = 4;                 // Параллакс (mas)
+    
+    // Физические характеристики
+    optional double mass_solar_masses = 5;        // Масса в солнечных массах
+    optional double radius_solar_radii = 6;       // Радиус в солнечных радиусах
+    optional double age_years = 7;                // Возраст в годах
+    optional double metallicity = 8;              // Металличность ([Fe/H])
+    optional double temperature_kelvin = 9;       // Температура поверхности в Кельвинах
+    
+    // Дополнительные данные
+    map<string, string> properties = 10;           // Общие свойства
+    map<string, string> discovery_info = 11;       // Информация об открытии
+    
+}
+
+// Фильтр для поиска и фильтрации небесных объектов.
+message CelestialObjectFilter {
+    // Типы объектов
+    repeated CelestialObjectType types = 1;
+    
+    // по родительскому объекту
+    optional string parent_id = 2;
+    
+    // по наименованию
+    optional string name_pattern = 3;       
+    
+    // Включать ли удалённые объекты
+    optional bool visited_only = 4;
+}
+
+// Запрос на получение списка типов объектов.
+message GetObjectTypesRequest {
+    // Если указан, возвращаются только подтипы данного типа
+    optional CelestialObjectType parent_type = 1;
+}
+
+// Ответ со списком типов объектов и их описаниями.
+message GetObjectTypesResponse {
+    // Информация о типе объекта
+    message TypeInfo {
+        CelestialObjectType type = 1;              // Тип объекта
+        string description = 2;                     // Описание типа
+        optional CelestialObjectType parent_type = 3; // Родительский тип
+    }
+    repeated TypeInfo types = 1;                    // Список типов
+}
+
+// Запрос на получение объекта по его ID
+message GetCelestialObjectRequest {
+    string id = 1;
+}
+
+// Запрос на получение списка объектов
+message ListCelestialObjectsRequest {
+    CelestialObjectFilter filter = 1;     // Фильтр для поиска
+    int32 page_size = 2;                  // Размер страницы пагинации
+    optional string page_token = 3;        // Токен для следующей страницы
+}
+
+
+// Ответ со списком объектов
+message ListCelestialObjectsResponse {
+    repeated CelestialObject objects = 1;
+    optional string next_page_token = 2;
+    int32 total_count = 3;
+}
+
+// Запрос на создание объекта
+message CreateCelestialObjectRequest {
+    CelestialObject object = 1;
+}
+
+// Запрос на обновление объекта
+message UpdateCelestialObjectRequest {
+    string id = 1;
+    CelestialObject object = 2;
+    // Маска обновляемых полей
+    repeated string update_mask = 3;
+}
+
+// Запрос на удаление объекта
+message DeleteCelestialObjectRequest {
+    string id = 1;
+    bool hard_delete = 2;  // true - физическое удаление, false - soft delete
+}
+
+// Основной сервис игрового мира
+service GameWorldService {
+    // Получение списка типов объектов
+    rpc GetObjectTypes(GetObjectTypesRequest) returns (GetObjectTypesResponse) {}
+    
+    // CRUD операции с объектами
+    rpc GetCelestialObject(GetCelestialObjectRequest) returns (CelestialObject) {}
+    rpc ListCelestialObjects(ListCelestialObjectsRequest) returns (ListCelestialObjectsResponse) {}
+    rpc CreateCelestialObject(CreateCelestialObjectRequest) returns (CelestialObject) {}
+    rpc UpdateCelestialObject(UpdateCelestialObjectRequest) returns (CelestialObject) {}
+    rpc DeleteCelestialObject(DeleteCelestialObjectRequest) returns (google.protobuf.Empty) {}
+
+    // Health check
+    rpc HealthCheck(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}
