@@ -25,13 +25,7 @@ jobs:
     - name: Run Clang-Tidy
       run: |
         run: |
-        FILES=$(find . -name '*.cpp' -o -name '*.hpp')
-        if [ -n "$FILES" ]; then
-          echo "Found files to analyze: $FILES"
-          clang-tidy $FILES -p build --
-        else
-          echo "No .cpp or .hpp files found"
-        fi
+          find . -name '*.cpp' -o -name '*.hpp' | xargs clang-tidy --checks=*,-llvmlibc-* --
     
     - name: Run Cppcheck
       run: |
