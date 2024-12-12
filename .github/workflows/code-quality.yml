@@ -17,6 +17,10 @@ jobs:
       run: |
         sudo apt-get update
         sudo apt-get install -y clang-tidy cppcheck
+
+    - name: Configure CMake
+      run: |
+        cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
     
     - name: Run Clang-Tidy
       run: |
@@ -25,10 +29,6 @@ jobs:
     - name: Run Cppcheck
       run: |
         cppcheck --enable=all --error-exitcode=1 .
-
-    - name: Configure CMake
-      run: |
-        cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
     
     - name: Check formatting
       run: |
