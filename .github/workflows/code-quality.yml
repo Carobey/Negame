@@ -24,7 +24,14 @@ jobs:
     
     - name: Run Clang-Tidy
       run: |
-        find . -name '*.cpp' -o -name '*.hpp' | xargs clang-tidy -p build --
+        run: |
+        FILES=$(find . -name '*.cpp' -o -name '*.hpp')
+        if [ -n "$FILES" ]; then
+          echo "Found files to analyze: $FILES"
+          clang-tidy $FILES -p build --
+        else
+          echo "No .cpp or .hpp files found"
+        fi
     
     - name: Run Cppcheck
       run: |
