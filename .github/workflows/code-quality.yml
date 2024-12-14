@@ -24,7 +24,8 @@ jobs:
     
     - name: Run Clang-Tidy
       run: |
-        find . -name '*.cpp' -o -name '*.hpp' | xargs clang-tidy -p build --
+        run: |
+          find . -name '*.cpp' -o -name '*.hpp' | xargs clang-tidy --checks=*,-llvmlibc-* --
     
     - name: Run Cppcheck
       run: |
