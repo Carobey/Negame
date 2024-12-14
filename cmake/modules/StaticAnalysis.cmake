@@ -1,5 +1,4 @@
 if(ENABLE_STATIC_ANALYSIS)
-    # Настройка cppcheck
     find_program(CPPCHECK cppcheck)
     if(CPPCHECK)
         list(APPEND CPPCHECK_ARGS
@@ -18,7 +17,6 @@ if(ENABLE_STATIC_ANALYSIS)
         )
     endif()
 
-    # Настройка clang-tidy
     find_program(CLANG_TIDY clang-tidy)
     if(CLANG_TIDY)
         set(CMAKE_CXX_CLANG_TIDY 
@@ -28,7 +26,6 @@ if(ENABLE_STATIC_ANALYSIS)
         )
     endif()
 
-    # Настройка clang-format
     find_program(CLANG_FORMAT "clang-format")
     if(CLANG_FORMAT)
         file(GLOB_RECURSE ALL_SOURCE_FILES 
@@ -45,7 +42,6 @@ if(ENABLE_STATIC_ANALYSIS)
         )
     endif()
 else()
-    # Если статический анализ отключен, создаем пустые таргеты
     add_custom_target(cppcheck
         COMMAND ${CMAKE_COMMAND} -E echo "Static analysis is disabled. Enable with -DENABLE_STATIC_ANALYSIS=ON"
     )

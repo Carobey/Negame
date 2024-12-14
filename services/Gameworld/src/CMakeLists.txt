@@ -1,13 +1,6 @@
 add_library(${SERVICE_NAME}_lib STATIC)
 
-file(GLOB_RECURSE LIB_SOURCES 
-    "*.cpp"
-    "core/*.cpp"
-    "network/*.cpp"
-    "database/*.cpp"
-    "service/*.cpp"
-    "utils/*.cpp"
-)
+collect_sources(LIB_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}")
 
 target_sources(${SERVICE_NAME}_lib
     PRIVATE
