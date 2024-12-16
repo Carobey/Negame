@@ -4,6 +4,7 @@
 #include <boost/uuid/uuid_generators.hpp>
 #include <boost/uuid/uuid_io.hpp>
 #include <boost/algorithm/string/join.hpp>
+#include "gameworld.pb.h"
 
 #include "database/celestial_object_repository_impl.hpp"
 
@@ -341,11 +342,11 @@ CelestialObject CelestialObjectRepositoryImpl::create(const CelestialObject& ent
                 boost::uuids::to_string(boost::uuids::random_generator()()) : 
                 entity.id();
 
-            auto glob_coords = entity.has_globcoordinates() ? 
-                entity.globcoordinates() : GlobalCoordinates{};
-            
-            auto loc_coords = entity.has_loccoordinates() ? 
-                entity.loccoordinates() : LocalCoordinates{};
+            auto glob_coords = entity.has_global_position() ?
+                entity.global_position() : Coordinates{};
+
+            auto loc_coords = entity.has_local_position() ?
+                entity.local_position() : Coordinates{};
 
             auto result = txn.exec_params(
                 INSERT_OBJECT.data(),
@@ -392,11 +393,11 @@ bool CelestialObjectRepositoryImpl::update(const CelestialObject& entity) {
         }
 
         return db_->executeTransaction([&](pqxx::work& txn) {
-            auto glob_coords = entity.has_globcoordinates() ? 
-                entity.globcoordinates() : GlobalCoordinates{};
-            
-            auto loc_coords = entity.has_loccoordinates() ? 
-                entity.loccoordinates() : LocalCoordinates{};
+            auto glob_coords = entity.has_global_position() ?
+                entity.global_position() : Coordinates{};
+
+            auto loc_coords = entity.has_local_position() ?
+                entity.local_position() : Coordinates{};
 
             auto result = txn.exec_params(
                 UPDATE_OBJECT.data(),
@@ -487,7 +488,7 @@ std::vector<CelestialObject> CelestialObjectRepositoryImpl::findByType(Celestial
 }
 
 std::vector<CelestialObject> CelestialObjectRepositoryImpl::findInRegion(
-    const GlobalCoordinates& center, 
+    const Coordinates& center, 
     double radius
 ) {
     try {
@@ -587,8 +588,8 @@ bool CelestialObjectRepositoryImpl::validateObject(const CelestialObject& object
         return false;
     }
 
-    if (object.has_globcoordinates()) {
-        const auto& coords = object.globcoordinates();
+    if (object.has_global_position()) {
+        const auto& coords = object.global_position();
         if (std::abs(coords.x()) > 1e6 || 
             std::abs(coords.y()) > 1e6 || 
             std::abs(coords.z()) > 1e6) {
@@ -676,13 +677,13 @@ void CelestialObjectRepositoryImpl::mapObjectType(CelestialObject& obj, const pq
 
 void CelestialObjectRepositoryImpl::mapCoordinates(CelestialObject& obj, const pqxx::row& row) {
     if (!row["coordinates"].is_null()) {
-        auto* coords = obj.mutable_globcoordinates();
+        auto* coords = obj.mutable_global_position();
         auto global_coords = extractCoordinates(row);
         coords->CopyFrom(global_coords);
     }
 
     if (!row["local_coordinates"].is_null()) {
-        auto* coords = obj.mutable_loccoordinates();
+        auto* coords = obj.mutable_local_position();
         auto local_coords = extractLocalCoordinates(row);
         coords->CopyFrom(local_coords);
     }
@@ -1017,8 +1018,8 @@ std::vector<std::string> CelestialObjectRepositoryImpl::getAvailableProperties(C
     }
 }
 
-GlobalCoordinates CelestialObjectRepositoryImpl::extractCoordinates(const pqxx::row& row) {
-    GlobalCoordinates coords;
+Coordinates CelestialObjectRepositoryImpl::extractCoordinates(const pqxx::row& row) {
+    Coordinates coords;
     if (!row["coordinates"].is_null()) {
         std::string point_str = row["coordinates"].as<std::string>();
         double x = 0, y = 0, z = 0;
@@ -1031,8 +1032,8 @@ GlobalCoordinates CelestialObjectRepositoryImpl::extractCoordinates(const pqxx::
     return coords;
 }
 
-LocalCoordinates CelestialObjectRepositoryImpl::extractLocalCoordinates(const pqxx::row& row) {
-    LocalCoordinates coords;
+Coordinates CelestialObjectRepositoryImpl::extractLocalCoordinates(const pqxx::row& row) {
+    Coordinates coords;
     if (!row["local_coordinates"].is_null()) {
         std::string point_str = row["local_coordinates"].as<std::string>();
         double x = 0, y = 0, z = 0;

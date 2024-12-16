@@ -22,7 +22,7 @@ public:
 
     std::vector<v1::CelestialObject> findByType(v1::CelestialObjectType type) override;
     std::vector<v1::CelestialObject> findByParent(const std::string& parentId) override;
-    std::vector<v1::CelestialObject> findInRegion(const v1::GlobalCoordinates& center, double radius) override;
+    std::vector<v1::CelestialObject> findInRegion(const v1::Coordinates& center, double radius) override;
     std::vector<v1::CelestialObject> getChildren(const std::string& parentId) override;
     std::optional<v1::CelestialObject> getParent(const std::string& childId) override;
 
@@ -40,8 +40,8 @@ private:
     static v1::CelestialObject rowToObject(const pqxx::row& row, std::shared_ptr<core::Logger>& logger);
     static v1::CelestialObjectProperty rowToProperties(const pqxx::row& row, std::shared_ptr<core::Logger>& logger); 
     static std::string propsToJson(const google::protobuf::Map<std::string, std::string>& props, std::shared_ptr<core::Logger>& logger);
-    static v1::GlobalCoordinates extractCoordinates(const pqxx::row& row);
-    static v1::LocalCoordinates extractLocalCoordinates(const pqxx::row& row);
+    static v1::Coordinates extractCoordinates(const pqxx::row& row);
+    static v1::Coordinates extractLocalCoordinates(const pqxx::row& row);
 
     static void mapObjectType(CelestialObject& obj, const pqxx::row& row);
     static void mapBasicFields(CelestialObject& obj, const pqxx::row& row);

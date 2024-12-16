@@ -25,7 +25,7 @@ public:
 
     virtual std::vector<CelestialObject> findByType(CelestialObjectType type) = 0;
     virtual std::vector<CelestialObject> findByParent(const std::string& parentId) = 0;
-    virtual std::vector<CelestialObject> findInRegion(const GlobalCoordinates& center, double radius) = 0;
+    virtual std::vector<CelestialObject> findInRegion(const Coordinates& center, double radius) = 0;
     
     virtual std::vector<CelestialObject> getChildren(const std::string& parentId) = 0;
     virtual std::optional<CelestialObject> getParent(const std::string& childId) = 0;

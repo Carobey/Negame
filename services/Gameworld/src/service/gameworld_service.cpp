@@ -313,8 +313,8 @@ bool GameWorldService::validateCelestialObject(
         return false;
     }
 
-    if (object.has_globcoordinates()) {
-        const auto& coords = object.globcoordinates();
+    if (object.has_global_position()) {
+        const auto& coords = object.global_position();
         if (std::abs(coords.x()) > 1e6 || 
             std::abs(coords.y()) > 1e6 || 
             std::abs(coords.z()) > 1e6) {

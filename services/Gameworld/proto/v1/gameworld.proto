@@ -51,18 +51,9 @@ enum CelestialObjectType {
     QUANTUM_VACUUM_MINE = 25;    // Vacuum energy harvesting device
 }
 
-// Global coordinates of an object in space.
-// Used to determine the position of an object in the galaxy.
-message GlobalCoordinates {
-    double x = 1;
-    double y = 2;
-    double z = 3;
-}
-
-// Local coordinates of an object in space.
-// Used to determine the position of an object in the local sector.
-message LocalCoordinates {
-    double x = 1;
+// coordinate in parsecs or astronomical units
+message Coordinates {
+    double x = 1; 
     double y = 2;
     double z = 3;
 }
@@ -86,8 +77,8 @@ message CelestialObject {
     optional string designation = 6;
     
     // Object position
-    GlobalCoordinates globCoordinates = 7;                    
-    LocalCoordinates locCoordinates = 8;
+    Coordinates global_position = 7;                    
+    Coordinates local_position = 8;
 
     // Additional data
     map<string, string> properties = 9;           // General properties
