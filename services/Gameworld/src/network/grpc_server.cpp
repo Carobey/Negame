@@ -1,9 +1,6 @@
 #include "network/grpc_server.hpp"
-#include "core/logger.hpp"
 
 namespace gameworld::network {
-
-GrpcServer::GrpcServer() = default;
 
 GrpcServer::~GrpcServer() {
     stop();
@@ -17,32 +14,24 @@ bool GrpcServer::start(const std::string& address, int port, int threads) {
 
         grpc::ServerBuilder builder;
         
-        // Включаем reflection service
         grpc::reflection::InitProtoReflectionServerBuilderPlugin();
-        
-        // Настройка TLS если включено
         setupTLS();
         
-        // Настройка адреса
         auto server_address = address + ":" + std::to_string(port);
         builder.AddListeningPort(server_address, grpc::InsecureServerCredentials());
 
-        // Регистрация сервисов
         for (const auto& service : services_) {
             builder.RegisterService(service.get());
         }
 
-        // Настройка параметров сервера
-        builder.SetMaxReceiveMessageSize(64 * 1024 * 1024); // 64MB
-        builder.SetMaxSendMessageSize(64 * 1024 * 1024);    // 64MB
+        builder.SetMaxReceiveMessageSize(64 * 1024 * 1024);
+        builder.SetMaxSendMessageSize(64 * 1024 * 1024);
         
-        // Создание сервера
         server_ = builder.BuildAndStart();
         if (!server_) {
             throw std::runtime_error("Failed to start gRPC server");
         }
 
-        // Запуск рабочих потоков
         threads_.reserve(threads);
         for (int i = 0; i < threads; ++i) {
             threads_.emplace_back([this] {
@@ -51,13 +40,12 @@ bool GrpcServer::start(const std::string& address, int port, int threads) {
         }
 
         running_ = true;
-        core::getLogger().info("gRPC server started on {} with {} threads", 
-            server_address, threads);
+        logger_->info("gRPC server started on {} with {} threads", server_address, threads);
         
         return true;
     }
     catch (const std::exception& e) {
-        core::getLogger().error("Failed to start gRPC server: {}", e.what());
+        logger_->error("Failed to start gRPC server: {}", e.what());
         return false;
     }
 }
@@ -77,7 +65,7 @@ void GrpcServer::stop() {
     threads_.clear();
     
     running_ = false;
-    core::getLogger().info("gRPC server stopped");
+    logger_->info("gRPC server stopped");
 }
 
 bool GrpcServer::isRunning() const {
@@ -85,7 +73,7 @@ bool GrpcServer::isRunning() const {
 }
 
 void GrpcServer::setupTLS() {
-    // Реализация TLS конфигурации
+    // TODO TLS configuration implementation
 }
 
 } // namespace gameworld::network

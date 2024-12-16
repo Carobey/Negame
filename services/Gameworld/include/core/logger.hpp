@@ -6,6 +6,7 @@
 #include <boost/log/expressions.hpp>
 #include <boost/log/attributes.hpp>
 #include <boost/log/support/date_time.hpp>
+
 #include <format>
 #include <memory>
 #include <string>
@@ -18,7 +19,7 @@ class Logger {
 public:
     using severity_level = boost::log::trivial::severity_level;
 
-    Logger() = default;
+    Logger() : initialized_(false) {}
     ~Logger() noexcept = default;
 
     Logger(const Logger&) = delete;
@@ -27,19 +28,21 @@ public:
     Logger& operator=(Logger&&) = delete;
 
     void init(const std::string& logFile, severity_level minLevel = severity_level::info) {
+        std::lock_guard<std::mutex> lock(mutex_);
         try {
+            if (initialized_) {
+                return;
+            }
             namespace logging = boost::log;
             namespace keywords = boost::log::keywords;
             namespace expr = boost::log::expressions;
 
-            // Настраиваем форматирование
             logging::formatter fmt = expr::stream
                 << "["   << expr::format_date_time<boost::posix_time::ptime>("TimeStamp", "%Y-%m-%d %H:%M:%S.%f")
                 << "] [" << expr::attr<std::string>("ThreadID")
                 << "] [" << logging::trivial::severity
                 << "] "  << expr::smessage;
 
-            // Настраиваем логирование в файл
             logging::add_file_log(
                 keywords::file_name = logFile,
                 keywords::format = fmt,
@@ -48,39 +51,40 @@ public:
                 keywords::time_based_rotation = logging::sinks::file::rotation_at_time_point(0, 0, 0)
             );
 
-            // Настраиваем логирование в консоль
             logging::add_console_log(
                 std::cout,
                 keywords::format = fmt
             );
 
-            // Добавляем глобальные атрибуты
             logging::core::get()->add_global_attribute("ThreadID", logging::attributes::current_thread_id());
             logging::core::get()->set_filter(logging::trivial::severity >= minLevel);
             logging::add_common_attributes();
 
-            // Создаем логгер
             logger_ = std::make_unique<logging::sources::severity_logger<logging::trivial::severity_level>>();
+
+            initialized_ = true;
         }
         catch (const std::exception& e) {
             throw std::runtime_error(std::format("Failed to initialize logger: {}", e.what()));
         }
     }
 
-    template<typename... Args>
+template<typename... Args>
     void log(severity_level level, std::format_string<Args...> fmt, Args&&... args) {
         std::lock_guard<std::mutex> lock(mutex_);
         try {
+            if (!initialized_) {
+                std::cerr << std::format(fmt, std::forward<Args>(args)...) << std::endl;
+                return;
+            }
             auto message = std::format(fmt, std::forward<Args>(args)...);
             BOOST_LOG_SEV(*logger_, level) << message;
         }
         catch (const std::exception& e) {
-            BOOST_LOG_SEV(*logger_, severity_level::error) 
-                << std::format("Format error: {}. Original format: {}", e.what(), fmt.get());
+            std::cerr << "Logging error: " << e.what() << std::endl;
         }
     }
 
-    // Логирование с указанием места в коде
     template<typename... Args>
     void log_loc(severity_level level, 
                  std::format_string<Args...> fmt, 
@@ -156,12 +160,7 @@ public:
 private:
     std::unique_ptr<boost::log::sources::severity_logger<boost::log::trivial::severity_level>> logger_;
     mutable std::mutex mutex_;
+    bool initialized_{};
 };
-
-// Глобальный доступ к логгеру через синглтон
-inline Logger& getLogger() {
-    static Logger instance;
-    return instance;
-}
 
 } // namespace gameworld::core

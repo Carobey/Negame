@@ -2,18 +2,24 @@
 
 #include <grpcpp/grpcpp.h>
 #include <pqxx/pqxx>
+
 #include <string>
+
 #include "core/logger.hpp"
 
 namespace gameworld::core {
 
 class ErrorHandler {
 public:
-    ErrorHandler() = default;
+    explicit ErrorHandler(std::shared_ptr<Logger> logger) 
+        : logger_(std::move(logger)) {
+        if (!logger_) {
+            throw std::invalid_argument("Logger cannot be null");
+        }
+    }
 
-    // Преобразует исключение в gRPC статус
     grpc::Status handleGrpcError(const std::exception& e, std::string_view context) {
-        getLogger().error("[{}] Error: {}", context, e.what());
+        logger_->error("[{}] Error: {}", context, e.what());
 
         if (auto* db_error = dynamic_cast<const pqxx::sql_error*>(&e)) {
             return handleDatabaseError(*db_error);
@@ -32,8 +38,10 @@ public:
     }
 
 private:
+    std::shared_ptr<Logger> logger_;
+
     grpc::Status handleDatabaseError(const pqxx::sql_error& e) const {
-        // коды ошибок PostgreSQL
+        
         auto sqlstate = e.sqlstate();
         if (sqlstate == "23505") { // unique_violation
             return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, 

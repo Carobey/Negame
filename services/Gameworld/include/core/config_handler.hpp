@@ -2,63 +2,58 @@
 
 #include <boost/json.hpp>
 #include <boost/signals2.hpp>
+
 #include <filesystem>
+#include <memory>
 #include <string>
 #include <string_view>
 #include <optional>
 #include <fstream>
+
 #include "core/logger.hpp"
+#include "core/utils.hpp"
 
 namespace gameworld::core {
 
 class ConfigHandler {
 public:
     using ConfigChangeSignal = boost::signals2::signal<void(const boost::json::object&)>;
-
-    static ConfigHandler& getInstance() {
-        static ConfigHandler instance;
-        return instance;
+    
+    explicit ConfigHandler(std::shared_ptr<Logger> logger) 
+        : logger_(std::move(logger)) {
+        if (!logger_) {
+            throw std::invalid_argument("Logger cannot be null");
+        }
     }
-
-    ConfigHandler(const ConfigHandler&) = delete;
-    ConfigHandler& operator=(const ConfigHandler&) = delete;
 
     bool loadConfig(const std::filesystem::path& configPath) {
         try {
-            auto& logger = getLogger();
+            if (!validateConfigPath(configPath)) {
+                return false;
+            }
+
+            auto jsonStr = readConfigFile(configPath);
+            if (!jsonStr) {
+                return false;
+            }
+
+            auto config = parseJsonConfig(*jsonStr);
+            if (!config) {
+                return false;
+            }
+
+            if (!validateConfigFields(*config)) {
+                return false;
+            }
+
+            config_ = *config;
+            configChanged_(config_);
             
-            if (!std::filesystem::exists(configPath)) {
-                logger.error("Config file does not exist: {}", configPath.string());
-                return false;
-            }
-
-            std::ifstream file(configPath);
-            if (!file.is_open()) {
-                logger.error("Cannot open config file: {}", configPath.string());
-                return false;
-            }
-
-            std::string jsonStr((std::istreambuf_iterator<char>(file)), 
-                               std::istreambuf_iterator<char>());
-            
-            auto value = boost::json::parse(jsonStr);
-            if (!value.is_object()) {
-                logger.error("Root JSON value is not an object");
-                return false;
-            }
-
-            config_ = value.get_object();
-            
-            if (!validateConfig()) {
-                return false;
-            }
-
-            configChanged_(config_); // Оповещаем подписчиков об изменении конфигурации
-            logger.info("Configuration loaded successfully from {}", configPath.string());
+            logger_->info("Configuration loaded successfully from {}", configPath.string());
             return true;
         }
         catch (const std::exception& e) {
-            getLogger().error("Error loading config: {}", e.what());
+            logger_->error("Error loading config: {}", e.what());
             return false;
         }
     }
@@ -69,7 +64,7 @@ public:
             return get<T>(path);
         } 
         catch(const std::exception& e) {
-            getLogger().warn("Failed to get config value for path '{}': {}. Using default value.", 
+            logger_->warn("Failed to get config value for path '{}': {}. Using default value.", 
                 path, e.what());
             return defaultValue;
         }
@@ -77,8 +72,8 @@ public:
 
     template<typename T>
     T get(std::string_view path) const {
-        auto parts = splitPath(path);
-        auto value = getValueByPath(config_, parts);
+        auto parts = utils::splitPath(path);
+        auto value = utils::getValueByPath(config_, parts);
         
         if constexpr (std::is_same_v<T, std::string>) {
             return std::string(value.as_string());
@@ -97,20 +92,6 @@ public:
         }
     }
 
-    template<typename T>
-    std::optional<T> getValue(std::string_view key) const noexcept {
-        try {
-            if (auto ptr = config_.if_contains(key)) {
-                return boost::json::value_to<T>(*ptr);
-            }
-            return std::nullopt;
-        }
-        catch (const std::exception& e) {
-            getLogger().warn("Error getting config value for key '{}': {}", key, e.what());
-            return std::nullopt;
-        }
-    }
-
     boost::signals2::connection subscribeToChanges(
         const std::function<void(const boost::json::object&)>& callback) {
         return configChanged_.connect(callback);
@@ -118,99 +99,86 @@ public:
 
 private:
     ConfigHandler() = default;
-    boost::json::object config_;
-    ConfigChangeSignal configChanged_;
 
-    static std::vector<std::string> splitPath(std::string_view path) {
-        std::vector<std::string> parts;
-        std::string part;
-        
-        for (char c : path) {
-            if (c == '.') {
-                if (!part.empty()) {
-                    parts.push_back(std::move(part));
-                    part.clear();
-                }
-            } else {
-                part += c;
-            }
+    bool validateConfigPath(const std::filesystem::path& configPath) const {
+        if (!std::filesystem::exists(configPath)) {
+            logger_->error("Config file does not exist: {}", configPath.string());
+            return false;
         }
-        
-        if (!part.empty()) {
-            parts.push_back(std::move(part));
-        }
-        
-        return parts;
+        return true;
     }
 
-    bool validateConfig() {
-        auto& logger = getLogger();
-        
+    std::optional<std::string> readConfigFile(const std::filesystem::path& configPath) const {
+        std::ifstream file(configPath);
+        if (!file.is_open()) {
+            logger_->error("Cannot open config file: {}", configPath.string());
+            return std::nullopt;
+        }
+
+        return std::string(
+            std::istreambuf_iterator<char>(file),
+            std::istreambuf_iterator<char>()
+        );
+    }
+
+    std::optional<boost::json::object> parseJsonConfig(const std::string& jsonStr) const {
+        try {
+            auto value = boost::json::parse(jsonStr);
+            if (!value.is_object()) {
+                logger_->error("Root JSON value is not an object");
+                return std::nullopt;
+            }
+            return value.get_object();
+        }
+        catch (const std::exception& e) {
+            logger_->error("JSON parsing error: {}", e.what());
+            return std::nullopt;
+        }
+    }
+
+    bool validateConfigFields(const boost::json::object& config) const {
         static const std::array<std::string_view, 3> requiredFields = {
-            "database",
-            "service",
-            "logging"
+            "database", "service", "logging"
+        };
+
+        for (const auto& field : requiredFields) {
+            if (!config.contains(field)) {
+                logger_->error("Required field missing in config: {}", field);
+                return false;
+            }
+        }
+
+        if (!utils::validateDatabaseConfig(config.at("database").as_object())) {
+            logger_->error("Invalid database configuration");
+            return false;
+        }
+
+        return true;
+    }
+    
+    bool validateConfig() {
+        static const std::array<std::string_view, 3> requiredFields = {
+            "database", "service", "logging"
         };
 
         for (const auto& field : requiredFields) {
             if (!config_.contains(field)) {
-                logger.error("Required field missing in config: {}", field);
+                logger_->error("Required field missing in config: {}", field);
                 return false;
             }
         }
 
-        return validateDatabaseConfig();
-    }
-
-    bool validateDatabaseConfig() {
-        auto& logger = getLogger();
-        const auto& db = config_.at("database").as_object();
-        
-        static const std::array<std::string_view, 5> required = {
-            "host", "port", "name", "user", "password"
-        };
-
-        for (const auto& field : required) {
-            if (!db.contains(field)) {
-                logger.error("Required database field missing: {}", field);
-                return false;
-            }
-        }
-
-        if (db.at("port").as_int64() <= 0 || db.at("port").as_int64() > 65535) {
-            logger.error("Invalid database port");
+        if (!utils::validateDatabaseConfig(config_.at("database").as_object())) {
+            logger_->error("Invalid database configuration");
             return false;
         }
 
         return true;
     }
 
-    static boost::json::value getValueByPath(
-        const boost::json::object& obj,
-        const std::vector<std::string>& path
-    ) {
-        if (path.empty()) {
-            throw std::invalid_argument("Empty path");
-        }
-
-        const auto& key = path.front();
-        if (!obj.contains(key)) {
-            throw std::runtime_error(std::string("Path element not found: ") + key);
-        }
-
-        if (path.size() == 1) {
-            return obj.at(key);
-        }
-
-        if (!obj.at(key).is_object()) {
-            throw std::runtime_error(std::string("Path element is not an object: ") + key);
-        }
-
-        return getValueByPath(
-            obj.at(key).as_object(),
-            std::vector<std::string>(path.begin() + 1, path.end())
-        );
-    }
+    std::shared_ptr<Logger> logger_; 
+    boost::json::object config_;
+    ConfigChangeSignal configChanged_;
 };
 
 } // namespace gameworld::core

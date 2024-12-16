@@ -1,4 +1,5 @@
 #pragma once
+
 #include <optional>
 #include <memory>
 #include <vector>
@@ -34,4 +35,4 @@ protected:
     std::shared_ptr<Database> db_;
 };
 
-} // namespace gameworld::database
+}  // namespace gameworld::database

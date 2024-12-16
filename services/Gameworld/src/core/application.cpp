@@ -1,9 +1,11 @@
-#include "core/application.hpp"
 #include <boost/program_options.hpp>
+
 #include <csignal>
 #include <iostream>
+
+#include "core/config.hpp"
+#include "core/application.hpp"
 #include "service/gameworld_service.hpp"
-#include "core/config.hpp" // Для PROJECT_VERSION и SERVICE_NAME
 
 namespace gameworld::core {
 
@@ -15,19 +17,6 @@ namespace {
             g_app_instance->shutdown();
         }
     }
-}
-
-Application::Application(int argc, char* argv[])
-    : argc_(argc)
-    , argv_(argv)
-    , logger_(getLogger())
-    , config_(ConfigHandler::getInstance())
-{
-    g_app_instance = this;
-}
-
-Application::~Application() {
-    g_app_instance = nullptr;
 }
 
 bool Application::parseCommandLine() {
@@ -48,26 +37,26 @@ bool Application::parseCommandLine() {
             return false;
         }
 
-        return config_.loadConfig(vm["config"].as<std::string>());
+        return config_->loadConfig(vm["config"].as<std::string>());
     }
     catch (const std::exception& e) {
-        logger_.error("Command line parsing failed: {}", e.what());
+        logger_->error("Command line parsing failed: {}", e.what());
         return false;
     }
 }
 
 bool Application::initializeServices() {
     try {
-        logger_.init("service.log");
-        logger_.info("Starting {} version {}", SERVICE_NAME, PROJECT_VERSION);
+        logger_->info("Starting {} version {}", SERVICE_NAME, PROJECT_VERSION);
 
-        error_handler_ = std::make_shared<ErrorHandler>();
         db_ = std::make_shared<database::Database>(
-            config_.get<std::string>("database.host"),
-            config_.get<int>("database.port"),
-            config_.get<std::string>("database.name"),
-            config_.get<std::string>("database.user"),
-            config_.get<std::string>("database.password")
+            config_->get<std::string>("database.host"),
+            config_->get<int>("database.port"),
+            config_->get<std::string>("database.name"),
+            config_->get<std::string>("database.user"),
+            config_->get<std::string>("database.password"),
+            config_->get<size_t>("database.pool.max_connections"),
+            logger_
         );
 
         repository_ = std::make_shared<database::CelestialObjectRepositoryImpl>(
@@ -78,26 +67,27 @@ bool Application::initializeServices() {
             repository_, error_handler_, logger_
         );
 
-        grpc_server_ = std::make_unique<network::GrpcServer>();
+        grpc_server_ = std::make_unique<network::GrpcServer>(logger_);
         grpc_server_->registerService(std::move(service));
         
         if (!grpc_server_->start(
-                config_.get<std::string>("grpc.address"),
-                config_.get<int>("grpc.port"),
-                config_.get<int>("grpc.threads"))) {
-            logger_.error("Failed to start gRPC server");
+                config_->get<std::string>("grpc.address"),
+                config_->get<int>("grpc.port"),
+                config_->get<int>("grpc.threads"))) {
+            logger_->error("Failed to start gRPC server");
             return false;
         }
 
         return true;
     }
     catch (const std::exception& e) {
-        logger_.error("Failed to initialize services: {}", e.what());
+        logger_->error("Failed to initialize services: {}", e.what());
         return false;
     }
 }
 
 void Application::setupSignalHandlers() {
+    g_app_instance = this;
     std::signal(SIGINT, signal_handler);
 }
 
@@ -113,11 +103,11 @@ int Application::run() {
 }
 
 void Application::shutdown() {
-    logger_.info("Shutting down application...");
+    logger_->info("Shutting down application...");
     if (grpc_server_) {
         grpc_server_->stop();
     }
     exit_signal_.set_value();
 }
 
-} // namespace gameworld::core
+}  // namespace gameworld::core

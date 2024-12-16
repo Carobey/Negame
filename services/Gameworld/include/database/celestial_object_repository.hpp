@@ -15,9 +15,13 @@ class ICelestialObjectRepository : public IRepository<CelestialObject> {
 public:
     explicit ICelestialObjectRepository(
         std::shared_ptr<Database> db,
-        core::Logger& logger
+        std::shared_ptr<core::Logger> logger
     ) : IRepository<CelestialObject>(std::move(db))
-      , logger_(logger) {}
+      , logger_(std::move(logger)) {
+        if (!logger_) {
+            throw std::invalid_argument("Logger cannot be null");
+        }
+    }
 
     virtual std::vector<CelestialObject> findByType(CelestialObjectType type) = 0;
     virtual std::vector<CelestialObject> findByParent(const std::string& parentId) = 0;
@@ -37,7 +41,7 @@ public:
     virtual std::vector<std::string> getAvailableProperties(CelestialObjectType type) = 0;
 
 protected:
-    core::Logger& logger_;
+    std::shared_ptr<core::Logger> logger_;
 };
 
-} // namespace gameworld::database
+}  // namespace gameworld::database

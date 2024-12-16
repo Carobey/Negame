@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <pqxx/pqxx>
 
 #include <memory>
@@ -13,14 +14,24 @@
 namespace gameworld::database {
 class Database {
 public:
-    Database(const std::string& host,
-            const int port,
-            const std::string& dbname,
-            const std::string& user,
-            const std::string& password)
-        : Database(buildConnectionString(host, port, dbname, user, password)) {}
+    Database(const std::string& host, 
+            int port, 
+            const std::string& dbname, 
+            const std::string& user, 
+            const std::string& password,
+            size_t max_connections,
+            std::shared_ptr<core::Logger> logger)
+        : Database(buildConnectionString(host, 
+                                                           port,
+                                                           dbname,
+                                                           user,
+                                                           password),
+                                                           max_connections,
+                                                           std::move(logger)) {}
+  
+    explicit Database(const std::string& connection_string, size_t max_connections, std::shared_ptr<core::Logger> logger);
 
-    explicit Database(const std::string& connection_string);
+    ~Database() = default;
     
     template<typename Func> 
     auto executeTransaction(Func&& func) {
@@ -53,7 +64,10 @@ public:
     }
 
 private:
+    std::shared_ptr<core::Logger> logger_;
     std::unique_ptr<ConnectionPool> pool_;
+    size_t max_connections_;
+
     static std::string buildConnectionString(
         const std::string& host,
         const int port,
@@ -68,4 +82,4 @@ private:
     }
 };
 
-} // namespace gameworld::database
+}  // namespace gameworld::database

@@ -1,34 +1,13 @@
-/**
- * @file gameworld_service.cpp
- * @brief Реализация сервиса игрового мира
- */
-
 #include "service/gameworld_service.hpp"
 
 namespace gameworld::service {
 
 namespace {
-    // Константы пагинации
     constexpr int DEFAULT_PAGE_SIZE = 100;
     constexpr int MAX_PAGE_SIZE = 1000;
-
-    // Общие сообщения об ошибках
     constexpr std::string_view ERROR_INVALID_REQUEST = "Invalid request data";
     constexpr std::string_view ERROR_NOT_FOUND = "Object not found";
     constexpr std::string_view ERROR_VALIDATION = "Validation failed";
-
-}
-
-GameWorldService::GameWorldService(
-    std::shared_ptr<database::ICelestialObjectRepository> repository,
-    std::shared_ptr<core::ErrorHandler> error_handler,
-    core::Logger& logger
-) : repository_(std::move(repository))
-  , error_handler_(std::move(error_handler))
-  ,logger_(logger)
-{
-    if (!repository_) throw std::invalid_argument("Repository cannot be null");
-    if (!error_handler_) throw std::invalid_argument("Error handler cannot be null");
 }
 
 grpc::Status GameWorldService::GetObjectTypes(
@@ -67,7 +46,7 @@ grpc::Status GameWorldService::GetCelestialObject(
 
         auto object = repository_->getById(request->id());
         if (!object) {
-            logger_.warn_loc(std::source_location::current(), "Object not found: {}", request->id());
+            logger_->warn_loc(std::source_location::current(), "Object not found: {}", request->id());
             return grpc::Status(grpc::StatusCode::NOT_FOUND, 
                 boost::str(boost::format("Object with ID %1% not found") % request->id()));
         }
@@ -83,7 +62,6 @@ grpc::Status GameWorldService::ListCelestialObjects(
     v1::ListCelestialObjectsResponse* response
 ) {
     return handleGrpcRequest("ListCelestialObjects", [&]() {
-        // Валидация параметров пагинации
         int page_size = request->page_size();
         if (page_size <= 0) {
             page_size = DEFAULT_PAGE_SIZE;
@@ -91,13 +69,11 @@ grpc::Status GameWorldService::ListCelestialObjects(
             page_size = MAX_PAGE_SIZE;
         }
 
-        // Построение фильтра
         std::string filter;
         if (request->has_filter()) {
             const auto& req_filter = request->filter();
             std::vector<std::string> conditions;
 
-            // Фильтрация по типам
             if (!req_filter.types().empty()) {
                 std::vector<std::string> type_conditions;
                 for (const auto& type : req_filter.types()) {
@@ -110,14 +86,12 @@ grpc::Status GameWorldService::ListCelestialObjects(
                 );
             }
 
-            // Фильтрация по родительскому объекту
             if (req_filter.has_parent_id()) {
                 conditions.push_back(
                     boost::str(boost::format("parent_id = '%s'") % req_filter.parent_id())
                 );
             }
 
-            // Поиск по имени
             if (!req_filter.name_pattern().empty()) {
                 conditions.push_back(
                     boost::str(boost::format("name ILIKE '%%%s%%'") % req_filter.name_pattern())
@@ -129,10 +103,8 @@ grpc::Status GameWorldService::ListCelestialObjects(
             }
         }
 
-        // Получение данных с учетом пагинации
         auto objects = repository_->list(filter);
         
-        // Реализация пагинации на уровне сервиса
         int total_count = objects.size();
         int offset = 0;
         if (!request->page_token().empty()) {
@@ -144,12 +116,10 @@ grpc::Status GameWorldService::ListCelestialObjects(
             }
         }
 
-        // Добавляем объекты текущей страницы в ответ
         for (int i = offset; i < std::min(offset + page_size, total_count); ++i) {
             *response->add_objects() = objects[i];
         }
 
-        // Формируем токен следующей страницы
         if (offset + page_size < total_count) {
             response->set_next_page_token(std::to_string(offset + page_size));
         }
@@ -174,7 +144,6 @@ grpc::Status GameWorldService::CreateCelestialObject(
             return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, validation_error);
         }
 
-        // Проверка существования родительского объекта
         if (request->object().has_parent_id()) {
             auto parent = repository_->getById(request->object().parent_id());
             if (!parent) {
@@ -185,7 +154,7 @@ grpc::Status GameWorldService::CreateCelestialObject(
 
         *response = repository_->create(request->object());
         
-        logger_.info("Created celestial object: {} ({})", 
+        logger_->info("Created celestial object: {} ({})", 
             response->name(), response->id());
 
         return grpc::Status::OK;
@@ -211,7 +180,6 @@ grpc::Status GameWorldService::UpdateCelestialObject(
             return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, validation_error);
         }
 
-        // Проверяем существование объекта
         auto existing = repository_->getById(request->id());
         if (!existing) {
             return grpc::Status(grpc::StatusCode::NOT_FOUND, 
@@ -238,7 +206,6 @@ grpc::Status GameWorldService::UpdateCelestialObject(
             return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to update object");
         }
 
-        // Получаем обновленный объект
         auto result = repository_->getById(request->id());
         if (!result) {
             return grpc::Status(grpc::StatusCode::INTERNAL, 
@@ -247,7 +214,7 @@ grpc::Status GameWorldService::UpdateCelestialObject(
 
         *response = *result;
         
-        logger_.info("Updated celestial object: {} ({})", 
+        logger_->info("Updated celestial object: {} ({})", 
             response->name(), response->id());
 
         return grpc::Status::OK;
@@ -281,7 +248,7 @@ grpc::Status GameWorldService::DeleteCelestialObject(
             return grpc::Status(grpc::StatusCode::INTERNAL, "Failed to delete object");
         }
 
-        logger_.info("Deleted celestial object: {} ({})", 
+        logger_->info("Deleted celestial object: {} ({})", 
             existing->name(), existing->id());
 
         return grpc::Status::OK;
@@ -299,7 +266,7 @@ grpc::Status GameWorldService::HealthCheck(
             return grpc::Status::OK;
         }
         catch (const std::exception& e) {
-            logger_.error_loc(std::source_location::current(), "Health check failed: {}", e.what());
+            logger_->error_loc(std::source_location::current(), "Health check failed: {}", e.what());
             return grpc::Status(grpc::StatusCode::INTERNAL, "Service unhealthy");
         }
     });
@@ -314,7 +281,6 @@ bool GameWorldService::validateRequest(
         return false;
     }
 
-    // Проверяем тип запроса и выполняем соответствующую валидацию
     if (auto celestial_object = dynamic_cast<const v1::CelestialObject*>(request)) {
         return validateCelestialObject(*celestial_object, error);
     }
@@ -332,7 +298,6 @@ bool GameWorldService::validateCelestialObject(
     const v1::CelestialObject& object,
     std::string& error
 ) {
-    // Валидация имени
     if (object.name().empty()) {
         error = "Object name is required";
         return false;
@@ -343,16 +308,13 @@ bool GameWorldService::validateCelestialObject(
         return false;
     }
 
-    // Валидация типа
     if (object.type() == v1::CelestialObjectType::CELESTIAL_OBJECT_TYPE_UNSPECIFIED) {
         error = "Object type must be specified";
         return false;
     }
 
-    // Валидация координат
     if (object.has_globcoordinates()) {
         const auto& coords = object.globcoordinates();
-        // Проверяем на разумные пределы (в парсеках)
         if (std::abs(coords.x()) > 1e6 || 
             std::abs(coords.y()) > 1e6 || 
             std::abs(coords.z()) > 1e6) {
@@ -377,7 +339,6 @@ bool GameWorldService::validateCelestialObject(
         return false;
     }
 
-    // Валидация зависимостей между полями в зависимости от типа объекта
     switch (object.type()) {
         case v1::CelestialObjectType::PLANET:
             if (!object.has_parent_id()) {
@@ -394,7 +355,6 @@ bool GameWorldService::validateCelestialObject(
             // }
             break;
 
-        // Добавляем проверки для других типов объектов
         default:
             break;
     }
@@ -411,7 +371,6 @@ bool GameWorldService::validateCreateRequest(
         return false;
     }
 
-    // Проверяем, что ID не задан (генерируется автоматически)
     if (!request.object().id().empty()) {
         error = "Object ID should not be specified in create request";
         return false;
@@ -434,7 +393,6 @@ bool GameWorldService::validateUpdateRequest(
         return false;
     }
 
-    // Проверяем согласованность ID
     if (!request.object().id().empty() && 
         request.object().id() != request.id()) {
         error = "Inconsistent object IDs in update request";
@@ -444,4 +402,4 @@ bool GameWorldService::validateUpdateRequest(
     return validateCelestialObject(request.object(), error);
 }
 
-} // namespace gameworld::service
+}  // namespace gameworld::service
