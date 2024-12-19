@@ -1,0 +1,196 @@
+syntax = "proto3";
+
+package gameworld.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// CelestialObjectType defines types of celestial objects.
+// Types are organized hierarchically from large-scale structures to small bodies.
+enum CelestialObjectType {
+    // Undefined type
+    CELESTIAL_OBJECT_TYPE_UNSPECIFIED = 0;
+
+    // Large-scale structures
+    GALAXY_CLUSTER = 1;    // Giant cluster of galaxies bound by gravity
+    GALAXY = 2;            // Individual galaxy
+
+    // Components within galaxies
+    GALAXY_ARM = 3;             // Spiral arm of a galaxy
+    MOLECULAR_CLOUD = 4;        // Star formation region
+
+    // Star systems
+    STAR_SYSTEM_MULTIPLE = 5;   // System with three or more stars
+    STAR_SYSTEM_BINARY = 6;     // Binary star system
+    STAR_SYSTEM_SINGLE = 7;     // Single star system
+
+    // Stars and sub-star objects
+    STAR = 8;                   // Star
+    BLACK_HOLE_STELLAR = 9;     // Black hole
+    BROWN_DWARF = 10;           // Failed star
+
+    // Various types of planets and planet-like bodies
+    PLANET = 11;                // Rocky Earth-like planet
+    DWARF_PLANET = 12;          // Dwarf planet
+    PLANETOID = 13;             // Minor planet
+
+    // Small bodies
+    ASTEROID = 14;              // Asteroid
+    ASTEROID_BELT = 15;         // Asteroid belt
+    COMET = 16;                 // Comet
+    KUIPER_BELT_OBJECT = 17;    // Kuiper belt object
+    OORT_CLOUD_OBJECT = 18;     // Oort cloud object
+
+    // Artificial and sci-fi objects
+    DYSON_SPHERE = 19;          // Dyson sphere
+    DYSON_SWARM = 20;           // Swarm of satellites around a star
+    ARTIFICIAL_HABITAT = 21;     // Artificial habitat
+    SPACE_STATION = 22;         // Space station
+    STELLAR_ENGINE = 23;        // Device for controlling a star
+    WORMHOLE = 24;              // Space-time tunnel
+    QUANTUM_VACUUM_MINE = 25;    // Vacuum energy harvesting device
+}
+
+// coordinate in parsecs or astronomical units
+message Coordinates {
+    double x = 1; 
+    double y = 2;
+    double z = 3;
+}
+
+// CelestialObject represents a base celestial object.
+message CelestialObject {
+    // Unique object identifier
+    string id = 1;
+    
+    // Parent object ID
+    optional string parent_id = 2;
+    
+    // Celestial object type
+    CelestialObjectType type = 3;
+    string subType = 4;
+    
+    // Object name
+    string name = 5;
+    
+    // Scientific designation of the object (e.g., HD 40307)
+    optional string designation = 6;
+    
+    // Object position
+    Coordinates global_position = 7;                    
+    Coordinates local_position = 8;
+
+    // Additional data
+    map<string, string> properties = 9;           // General properties
+
+    optional google.protobuf.Timestamp discovery_date = 10;    // Discovery date
+
+    optional bool discovered = 11; // Flag indicating the system has been visited
+}
+
+// CelestialObjectProperty contains additional parameters of a base celestial object.
+// Contains additional characteristics that a space object may have.
+message CelestialObjectProperty {
+
+    optional double proper_motion_ra = 1;         // Proper motion in right ascension (mas/year)
+    optional double proper_motion_dec = 2;        // Proper motion in declination (mas/year)
+    optional double radial_velocity = 3;          // Radial velocity (km/s)
+    optional double parallax = 4;                 // Parallax (mas)
+    
+    // Physical characteristics
+    optional double mass_solar_masses = 5;        // Mass in solar masses
+    optional double radius_solar_radii = 6;       // Radius in solar radii
+    optional double age_years = 7;                // Age in years
+    optional double metallicity = 8;              // Metallicity ([Fe/H])
+    optional double temperature_kelvin = 9;       // Surface temperature in Kelvin
+    
+    // Additional data
+    map<string, string> properties = 10;           // General properties
+    map<string, string> discovery_info = 11;       // Discovery information
+}
+
+// Filter for searching and filtering celestial objects.
+message CelestialObjectFilter {
+    // Object types
+    repeated CelestialObjectType types = 1;
+    
+    // By parent object
+    optional string parent_id = 2;
+    
+    // By name
+    optional string name_pattern = 3;       
+    
+    // Include visited objects only
+    optional bool visited_only = 4;
+}
+
+// Request to get list of object types.
+message GetObjectTypesRequest {
+    // If specified, returns only subtypes of this type
+    optional CelestialObjectType parent_type = 1;
+}
+
+// Response with list of object types and their descriptions.
+message GetObjectTypesResponse {
+    // Object type information
+    message TypeInfo {
+        CelestialObjectType type = 1;              // Object type
+        string description = 2;                     // Type description
+        optional CelestialObjectType parent_type = 3; // Parent type
+    }
+    repeated TypeInfo types = 1;                    // List of types
+}
+
+// Request to get object by its ID
+message GetCelestialObjectRequest {
+    string id = 1;
+}
+
+// Request to get list of objects
+message ListCelestialObjectsRequest {
+    CelestialObjectFilter filter = 1;     // Search filter
+    int32 page_size = 2;                  // Pagination page size
+    optional string page_token = 3;        // Token for next page
+}
+
+// Response with list of objects
+message ListCelestialObjectsResponse {
+    repeated CelestialObject objects = 1;
+    optional string next_page_token = 2;
+    int32 total_count = 3;
+}
+
+// Request to create object
+message CreateCelestialObjectRequest {
+    CelestialObject object = 1;
+}
+
+// Request to update object
+message UpdateCelestialObjectRequest {
+    string id = 1;
+    CelestialObject object = 2;
+    // Fields to update
+    repeated string update_mask = 3;
+}
+
+// Request to delete object
+message DeleteCelestialObjectRequest {
+    string id = 1;
+    bool hard_delete = 2;  // true - physical delete, false - soft delete
+}
+
+// Main game world service
+service GameWorldService {
+    // Get list of object types
+    rpc GetObjectTypes(GetObjectTypesRequest) returns (GetObjectTypesResponse) {}
+    
+    // CRUD operations with objects
+    rpc GetCelestialObject(GetCelestialObjectRequest) returns (CelestialObject) {}
+    rpc ListCelestialObjects(ListCelestialObjectsRequest) returns (ListCelestialObjectsResponse) {}
+    rpc CreateCelestialObject(CreateCelestialObjectRequest) returns (CelestialObject) {}
+    rpc UpdateCelestialObject(UpdateCelestialObjectRequest) returns (CelestialObject) {}
+    rpc DeleteCelestialObject(DeleteCelestialObjectRequest) returns (google.protobuf.Empty) {}
+
+    // Health check
+    rpc HealthCheck(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+}

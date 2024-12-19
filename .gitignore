@@ -1,0 +1,64 @@
+# Build directories
+build/
+/build/
+/bin/
+/lib/
+/out/
+Debug/
+Release/
+CMakeFiles/
+CMakeCache.txt
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+.vs/
+.cache/
+
+# Generated files
+*.pb.cc
+*.pb.h
+*.grpc.pb.cc
+*.grpc.pb.h
+generated/
+
+# Compiled files
+*.o
+*.obj
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+*.exe
+*.out
+
+# Logs and databases
+*.log
+*.sqlite3
+*.db
+
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker
+.env
+
+# Dependencies lock files
+compile_commands.json
+
+# Test coverage
+coverage/
+*.gcov
+*.gcda
+*.gcno
+.gitignore
