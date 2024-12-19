@@ -2,9 +2,7 @@
 
 #include <grpcpp/grpcpp.h>
 #include <pqxx/pqxx>
-
 #include <string>
-
 #include "core/logger.hpp"
 
 namespace gameworld::core {
@@ -16,6 +14,14 @@ public:
         if (!logger_) {
             throw std::invalid_argument("Logger cannot be null");
         }
+    }
+
+    grpc::Status handleUnexpectedError(const std::exception& e, std::string_view context) {
+        logger_->error("[Unexpected Error in {}] {}", context, e.what());
+        return grpc::Status(
+            grpc::StatusCode::INTERNAL,
+            std::string("Unexpected error in ") + std::string(context) + ": " + e.what()
+        );
     }
 
     grpc::Status handleGrpcError(const std::exception& e, std::string_view context) {
@@ -37,11 +43,7 @@ public:
         );
     }
 
-private:
-    std::shared_ptr<Logger> logger_;
-
     grpc::Status handleDatabaseError(const pqxx::sql_error& e) const {
-        
         auto sqlstate = e.sqlstate();
         if (sqlstate == "23505") { // unique_violation
             return grpc::Status(grpc::StatusCode::ALREADY_EXISTS, 
@@ -55,10 +57,20 @@ private:
             return grpc::Status(grpc::StatusCode::INVALID_ARGUMENT, 
                 "Required field is null: " + std::string(e.what()));
         }
-
         return grpc::Status(grpc::StatusCode::INTERNAL, 
             "Database error: " + std::string(e.what()));
     }
+
+    grpc::Status handleValidationError(const std::exception& e, std::string_view context) {
+        logger_->error("[Validation Error in {}] {}", context, e.what());
+        return grpc::Status(
+            grpc::StatusCode::INVALID_ARGUMENT,
+            std::string("Validation error in ") + std::string(context) + ": " + e.what()
+        );
+    }
+
+private:
+    std::shared_ptr<Logger> logger_;
 };
 
-} // namespace gameworld::core
+}  // namespace gameworld::core

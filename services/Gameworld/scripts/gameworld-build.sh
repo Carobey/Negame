@@ -1,7 +1,6 @@
 #!/bin/bash
 source "$(dirname "$0")/common-utils.sh"
 
-# Очистка сборочной директории
 clean_build() {
     log info "Cleaning build directory..."
     if [ -d "${PROJECT_DIR}/build" ]; then
@@ -12,55 +11,31 @@ clean_build() {
     fi
 }
 
-# Генерация proto файлов
-generate_proto() {
-    log info "Generating proto files..."
-
-    local proto_dir="${PROJECT_DIR}/proto/v1"
-    local output_dir="${PROJECT_DIR}/build/generated"
-
-    mkdir -p "$output_dir"
-
-    for proto_file in "$proto_dir"/*.proto; do
-        if [ ! -f "$proto_file" ]; then
-            log warn "No proto files found in $proto_dir"
-            return 0
-        fi
-
-        log info "Processing $(basename "$proto_file")..."
-
-        if ! protoc \
-            --proto_path="$proto_dir" \
-            --cpp_out="$output_dir" \
-            --grpc_out="$output_dir" \
-            --plugin=protoc-gen-grpc="$(which grpc_cpp_plugin)" \
-            "$proto_file"; then
-            log error "Failed to generate proto files for $(basename "$proto_file")"
-            return 1
-        fi
-    done
-
-    log info "Proto files generated successfully"
-    return 0
-}
-
-# Сборка проекта
 build_project() {
     local build_type=$1
     local build_dir="${PROJECT_DIR}/build/$build_type"
+
+    local num_cores
+    if command -v nproc >/dev/null 2>&1; then
+        num_cores=$(nproc)
+    else
+        num_cores=4
+    fi
 
     log info "Configuring project with CMake (${build_type})..."
     
     if ! cmake -B "$build_dir" -GNinja \
         -DCMAKE_BUILD_TYPE="$build_type" \
         -DUSE_POSTGRESQL=ON \
-        -DBUILD_TESTS=OFF; then
+        -DBUILD_TESTS=OFF \
+        -DUSE_CCACHE=ON \
+        -DCMAKE_FIND_PACKAGE_PARALLEL_LEVEL="$num_cores"; then
         log error "CMake configuration failed"
         return 1
     fi
 
     log info "Building project..."
-    if ! cmake --build "$build_dir" --parallel; then
+    if ! cmake --build "$build_dir" --parallel "$num_cores"; then
         log error "Build failed"
         return 1
     fi
@@ -69,7 +44,6 @@ build_project() {
     return 0
 }
 
-# Запуск тестов
 run_tests() {
     local build_type=$1
     local build_dir="${PROJECT_DIR}/build/$build_type"
@@ -113,12 +87,10 @@ show_help() {
     echo "  $0 all Debug        # Full cycle in Debug mode"
 }
 
-# Основная функция
 main() {
     local command="${1:-all}"
     local build_type="${2:-Debug}"
     
-    # Проверка корректности типа сборки
     case "$build_type" in
         "Debug"|"Release"|"RelWithDebInfo"|"MinSizeRel")
             ;;
@@ -129,17 +101,14 @@ main() {
             ;;
     esac
 
-    # Выполнение команды
     case "$command" in
         "clean")
             clean_build
             ;;
         "deps")
-            main # вызываем main из install_dependencies.sh
+            main 
             ;;
-        "proto")
-            generate_proto
-            ;;
+        # "proto" команда больше не нужна, так как proto генерируется через CMake
         "build")
             build_project "$build_type"
             ;;
@@ -148,8 +117,7 @@ main() {
             ;;
         "all")
             clean_build && \
-            main && \       # установка зависимостей
-            generate_proto && \
+            main && \
             build_project "$build_type" && \
             run_tests "$build_type"
             ;;
@@ -164,5 +132,4 @@ main() {
     esac
 }
 
-# Запуск скрипта
 main "$@"
